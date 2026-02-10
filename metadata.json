@@ -1,0 +1,5 @@
+{
+  "name": "ArtTrack: 繪圖委託追蹤",
+  "description": "一個視覺化的委託追蹤工具，讓繪師管理排單，委託人即時查看進度。",
+  "requestFramePermissions": []
+}
