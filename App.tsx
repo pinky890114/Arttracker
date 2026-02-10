@@ -3,7 +3,7 @@ import { Commission, CommissionStatus, ThemeMode } from './types';
 import { MOCK_COMMISSIONS } from './constants';
 import { CommissionCard } from './components/CommissionCard';
 import { AddCommissionForm } from './components/AddCommissionForm';
-import { Search, Palette, Sparkles, Lock, Unlock, LogIn, ArrowRight } from 'lucide-react';
+import { Search, Palette, Sparkles, Lock, Unlock, LogIn, ArrowRight, ChevronDown } from 'lucide-react';
 
 const App: React.FC = () => {
   // State
@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<CommissionStatus | 'All'>('All');
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedArtistFilter, setSelectedArtistFilter] = useState<string>('All'); // New: For Header Dropdown
   
   // Artist Login State
   const [currentArtist, setCurrentArtist] = useState<string>('');
@@ -54,6 +55,12 @@ const App: React.FC = () => {
     }
   }, [commissions, isLoaded]);
 
+  // Extract Unique Artists for Dropdown
+  const uniqueArtists = useMemo(() => {
+    const artists = new Set(commissions.map(c => c.artistId).filter(Boolean));
+    return Array.from(artists);
+  }, [commissions]);
+
   // Handlers
   const handleUpdateStatus = (id: string, newStatus: CommissionStatus) => {
     setCommissions(prev => prev.map(c => 
@@ -78,8 +85,10 @@ const App: React.FC = () => {
 
   const toggleViewMode = () => {
     setViewMode(prev => prev === 'client' ? 'admin' : 'client');
-    // We do NOT clear currentArtist here, so they can switch back and forth easily.
-    // But if they want to "Logout", we provide a separate button.
+    // Reset filters when switching views
+    if (viewMode === 'client') {
+        setSelectedArtistFilter('All');
+    }
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -102,40 +111,58 @@ const App: React.FC = () => {
           if (c.artistId !== currentArtist) return false;
       }
 
-      // 2. Search & Filter
+      // 2. Client Mode: Filter by Selected Artist Dropdown
+      if (viewMode === 'client' && selectedArtistFilter !== 'All') {
+          if (c.artistId !== selectedArtistFilter) return false;
+      }
+
+      // 3. Search & Filter
+      const term = searchTerm.toLowerCase();
       const matchesSearch = 
-        c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        // Client mode might search for specific artist too
-        (viewMode === 'client' && c.artistId.toLowerCase().includes(searchTerm.toLowerCase()));
+        c.clientName.toLowerCase().includes(term) || 
+        c.title.toLowerCase().includes(term) ||
+        c.id.toLowerCase().includes(term);
+        // Removed artistId search here because it's handled by the dropdown now
       
       const matchesFilter = statusFilter === 'All' || c.status === statusFilter;
 
       return matchesSearch && matchesFilter;
     });
-  }, [commissions, searchTerm, statusFilter, viewMode, currentArtist]);
+  }, [commissions, searchTerm, statusFilter, viewMode, currentArtist, selectedArtistFilter]);
 
   // View Logic: Should we show the list?
   const shouldShowList = useMemo(() => {
     // Admin: Show list only if logged in
-    if (viewMode === 'admin') return !!currentArtist;
+    if (viewMode === 'admin' && currentArtist) {
+          return !!currentArtist;
+    }
     // Client: Must search to see results
     return searchTerm.trim().length > 0;
   }, [viewMode, searchTerm, currentArtist]);
 
-  // Statistics (Global for client, Filtered for admin)
+  // Statistics
   const stats = useMemo(() => {
-    const targetCommissions = (viewMode === 'admin' && currentArtist) 
-        ? commissions.filter(c => c.artistId === currentArtist)
-        : commissions;
+    let targetCommissions = commissions;
+
+    if (viewMode === 'admin') {
+        // Admin: Filter by current artist
+        targetCommissions = currentArtist 
+            ? commissions.filter(c => c.artistId === currentArtist)
+            : [];
+    } else {
+        // Client: Filter by Dropdown Selection ONLY
+        // This ensures stats reflect the "Teacher's workload", not just the search result
+        if (selectedArtistFilter !== 'All') {
+            targetCommissions = commissions.filter(c => c.artistId === selectedArtistFilter);
+        }
+    }
 
     return {
         queue: targetCommissions.filter(c => c.status === CommissionStatus.QUEUE).length,
         active: targetCommissions.filter(c => c.status !== CommissionStatus.QUEUE && c.status !== CommissionStatus.DONE).length,
         done: targetCommissions.filter(c => c.status === CommissionStatus.DONE).length
     }
-  }, [commissions, viewMode, currentArtist]);
+  }, [commissions, viewMode, currentArtist, selectedArtistFilter]);
 
   return (
     <div className="min-h-screen bg-[#fbfaf8] text-stone-700 selection:bg-emerald-200 flex flex-col">
@@ -143,13 +170,32 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-grow pt-12 pb-10 px-6 max-w-5xl mx-auto w-full">
         
-        {/* Simple Top Branding */}
+        {/* Top Header with Artist Selection */}
         <div className="flex items-center justify-between mb-8 text-[#1a472a] opacity-90">
             <div className="flex items-center gap-2">
                 <div className="bg-[#1a472a] text-white p-1.5 rounded-lg shadow-sm transform -rotate-3">
                     <Sparkles size={18} />
                 </div>
-                <h1 className="text-xl font-bold tracking-wide">Commission Tracker</h1>
+                
+                {viewMode === 'client' ? (
+                     <div className="relative group">
+                        <select 
+                            value={selectedArtistFilter}
+                            onChange={(e) => setSelectedArtistFilter(e.target.value)}
+                            className="appearance-none bg-transparent text-xl font-bold tracking-wide border-b-2 border-transparent hover:border-[#1a472a]/20 cursor-pointer pr-8 focus:outline-none transition-all text-[#1a472a] py-1"
+                        >
+                            <option value="All">所有繪師</option>
+                            {uniqueArtists.map(artist => (
+                                <option key={artist} value={artist}>{artist} 的委託表</option>
+                            ))}
+                        </select>
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[#1a472a]/50 group-hover:translate-y-0 transition-transform">
+                            <ChevronDown size={20} />
+                        </div>
+                     </div>
+                ) : (
+                    <h1 className="text-xl font-bold tracking-wide">Commission Tracker</h1>
+                )}
             </div>
             
             {/* Show Logged in Artist in Admin Mode */}
@@ -174,11 +220,14 @@ const App: React.FC = () => {
             <div className="mb-10 text-center sm:text-left sm:flex justify-between items-end animate-in fade-in slide-in-from-top-4 duration-500">
                 <div className="mb-8 sm:mb-0">
                     <h2 className="text-3xl font-bold text-[#1a472a] mb-3 tracking-tight">
-                        {viewMode === 'client' ? '委託進度一覽 ✨' : `歡迎回來，${currentArtist}！🎨`}
+                        {viewMode === 'client' 
+                            ? (selectedArtistFilter === 'All' ? '委託進度一覽 ✨' : `${selectedArtistFilter} 的委託現況 🎨`)
+                            : `歡迎回來，${currentArtist}！🎨`
+                        }
                     </h2>
                     <p className="text-stone-500 max-w-lg font-medium leading-relaxed">
                         {viewMode === 'client' 
-                            ? '歡迎回來！請輸入您的 ID 或暱稱，查詢您的委託進度～' 
+                            ? '選擇繪師並輸入您的 ID 或暱稱，即可查詢進度～' 
                             : '今天也要元氣滿滿的畫圖！這裡可以管理排單和進度喔。'}
                     </p>
                 </div>
@@ -243,7 +292,7 @@ const App: React.FC = () => {
                     <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-stone-400" size={20} />
                     <input 
                       type="text" 
-                      placeholder={viewMode === 'client' ? "搜尋委託人名稱、項目或 ID..." : "在您的委託中搜尋..."}
+                      placeholder={viewMode === 'client' ? "輸入您的名稱 (ID) 查詢進度..." : "在您的委託中搜尋..."}
                       className="w-full bg-white border-2 border-stone-200 text-stone-700 pl-12 pr-6 py-3 rounded-full focus:ring-4 focus:ring-[#1a472a]/10 focus:border-[#1a472a] focus:outline-none transition-all placeholder:text-stone-400 font-medium"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -286,8 +335,8 @@ const App: React.FC = () => {
                             <div className="mx-auto w-20 h-20 bg-stone-100/50 rounded-full flex items-center justify-center mb-5 animate-[pulse_3s_ease-in-out_infinite]">
                                 <Search className="text-stone-300" size={36} />
                             </div>
-                            <h3 className="text-xl font-bold text-stone-500">輸入關鍵字開始查詢</h3>
-                            <p className="text-stone-400 mt-2 font-medium text-sm">請在上方搜尋欄輸入您的 ID 或委託名稱</p>
+                            <h3 className="text-xl font-bold text-stone-500">輸入委託人名稱開始查詢</h3>
+                            <p className="text-stone-400 mt-2 font-medium text-sm">請在上方搜尋欄輸入您的 ID 以查看進度</p>
                         </div>
                     ) : filteredCommissions.length === 0 ? (
                         // Search resulted in empty
