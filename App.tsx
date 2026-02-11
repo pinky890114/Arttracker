@@ -3,7 +3,7 @@ import { Commission, CommissionStatus, ThemeMode } from './types';
 import { DEFAULT_COMMISSION_TYPES } from './constants';
 import { CommissionCard } from './components/CommissionCard';
 import { AddCommissionForm } from './components/AddCommissionForm';
-import { Search, Palette, Sparkles, Lock, Unlock, ArrowRight, ChevronDown, LoaderCircle, PenTool, AlertTriangle, KeyRound, Mail, User } from 'lucide-react';
+import { Search, Palette, Sparkles, Lock, Unlock, ArrowRight, ChevronDown, LoaderCircle, PenTool, AlertTriangle, KeyRound, Mail, User, Database, Globe, Copy } from 'lucide-react';
 import { 
     getCommissionsForArtist, 
     getAllCommissions, 
@@ -11,7 +11,7 @@ import {
     updateCommissionStatus, 
     deleteCommission 
 } from './services/dataService';
-import { auth } from './services/firebase';
+import { auth, isFirebaseConfigured } from './services/firebase';
 import { 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
@@ -50,19 +50,18 @@ const App: React.FC = () => {
 
   // --- AUTH LISTENER ---
   useEffect(() => {
+      if (!isFirebaseConfigured) return;
+      
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
           setUser(currentUser);
-          if (currentUser) {
-              // Automatically switch to admin view if logged in
-              // But only if we are not already in admin view (to prevent forcing it if user navigated away)
-              // Actually, keeping it simple: Just set user state.
-          }
       });
       return () => unsubscribe();
   }, []);
 
   // --- DATA FETCHING ---
   const fetchAllData = useCallback(async (isLogin: boolean = false) => {
+    if (!isFirebaseConfigured) return;
+
     if (!isLogin) setIsLoading(true);
     setError(null);
     try {
@@ -85,11 +84,17 @@ const App: React.FC = () => {
   
   // Initial load
   useEffect(() => {
-    fetchAllData();
+    if (isFirebaseConfigured) {
+        fetchAllData();
+    } else {
+        setIsLoading(false);
+    }
   }, []);
 
   // Fetch personal data when user changes
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
     if (user && user.displayName) {
         const fetchPersonalData = async () => {
             setIsLoading(true);
@@ -282,6 +287,62 @@ const App: React.FC = () => {
     }
   }, [allCommissions, myCommissions, viewMode, selectedArtistFilter]);
 
+
+  // --- RENDER: SETUP GUIDE (If no config) ---
+  if (!isFirebaseConfigured) {
+      return (
+        <div className="min-h-screen bg-[#fbfaf8] flex flex-col items-center justify-center p-6 text-stone-700">
+             <div className="bg-white p-8 rounded-3xl shadow-xl shadow-stone-200 border-2 border-stone-100 max-w-2xl w-full">
+                <div className="text-center mb-8">
+                    <div className="w-20 h-20 bg-emerald-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto mb-6 transform -rotate-3 shadow-sm">
+                        <Database size={40} />
+                    </div>
+                    <h2 className="text-3xl font-bold text-stone-800 mb-2">建立您專屬的資料庫</h2>
+                    <p className="text-stone-500 font-medium">為了避免資料與他人混淆，請設定自己的 Firebase 專案。</p>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 flex gap-4">
+                        <div className="bg-white p-2 rounded-lg h-fit shadow-sm text-stone-600 font-bold border border-stone-100">1</div>
+                        <div>
+                            <h4 className="font-bold text-lg mb-1">前往 Firebase Console</h4>
+                            <p className="text-sm text-stone-500 mb-2">點擊下方按鈕開啟 Firebase 控制台，並登入您的 Google 帳號。</p>
+                            <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[#1a472a] font-bold text-sm hover:underline">
+                                <Globe size={14} /> 開啟 Firebase Console
+                            </a>
+                        </div>
+                    </div>
+
+                    <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 flex gap-4">
+                        <div className="bg-white p-2 rounded-lg h-fit shadow-sm text-stone-600 font-bold border border-stone-100">2</div>
+                        <div>
+                            <h4 className="font-bold text-lg mb-1">建立專案與 Web App</h4>
+                            <ul className="text-sm text-stone-500 space-y-1 list-disc pl-4">
+                                <li>點擊 <strong>"Create a project"</strong> (建立專案)。</li>
+                                <li>專案建立後，在首頁點擊 <strong>Web 圖示 (&lt;/&gt;)</strong>。</li>
+                                <li>輸入 App 名稱 (例如 ArtTrack)，點擊註冊。</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 flex gap-4">
+                        <div className="bg-white p-2 rounded-lg h-fit shadow-sm text-stone-600 font-bold border border-stone-100">3</div>
+                        <div>
+                            <h4 className="font-bold text-lg mb-1">複製設定檔</h4>
+                            <p className="text-sm text-stone-500 mb-2">
+                                找到 <code className="bg-stone-200 px-1 rounded">const firebaseConfig = &#123;...&#125;</code> 這段程式碼，將其中的內容填入本專案的 <code className="text-orange-600 font-mono">services/firebase.ts</code> 檔案中。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-8 text-center text-sm text-stone-400 font-medium">
+                    完成後，請重新整理此頁面即可開始使用！
+                </div>
+             </div>
+        </div>
+      );
+  }
 
   // --- RENDER: LOADING ---
   if (isLoading) {
