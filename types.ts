@@ -8,13 +8,14 @@ export enum CommissionStatus {
 }
 
 export interface Commission {
-  id: string;
-  artistId: string; // 負責此委託的繪師名稱/ID
+  id: string; // This will now be the database ID
+  userId: string; // Foreign key to the user/artist
+  artistId: string; // The artist's public display name
   clientName: string;
   contact?: string; // e.g., Discord handle or email
   title: string;
   description: string;
-  type: '大頭貼' | '半身' | '全身' | '插畫' | '立繪設計' | 'Q版' | '社團特殊委託';
+  type: string;
   price: number;
   status: CommissionStatus;
   dateAdded: string;
