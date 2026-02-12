@@ -48,6 +48,17 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // --- HELPER: HANDLE ERRORS ---
+  const handleDataError = (err: any) => {
+      console.error("Data Operation Error:", err);
+      const isPermission = err?.code === 'permission-denied' || err?.message?.includes('permission-denied') || err?.message?.includes('Missing or insufficient permissions');
+      if (isPermission) {
+          setError("permission-denied");
+      } else {
+          alert(`操作失敗: ${err.message || "未知錯誤"}`);
+      }
+  };
+
   // --- AUTH LISTENER ---
   useEffect(() => {
       if (!isFirebaseConfigured) return;
@@ -139,12 +150,12 @@ const App: React.FC = () => {
       c.id === id ? { ...c, status: newStatus, lastUpdated: new Date().toISOString().split('T')[0] } : c
     ));
 
-    const success = await updateCommissionStatus(id, newStatus);
-    if (!success) {
-      setMyCommissions(originalCommissions);
-      alert("更新失敗，請重試！");
-    } else {
-      fetchAllData(true);
+    try {
+        await updateCommissionStatus(id, newStatus);
+        fetchAllData(true);
+    } catch (err) {
+        setMyCommissions(originalCommissions); // Revert
+        handleDataError(err);
     }
   };
 
@@ -152,12 +163,12 @@ const App: React.FC = () => {
     const originalCommissions = [...myCommissions];
     setMyCommissions(prev => prev.filter(c => c.id !== id));
     
-    const success = await deleteCommission(id);
-    if (!success) {
-        setMyCommissions(originalCommissions);
-        alert("刪除失敗，請重試！");
-    } else {
-      fetchAllData(true);
+    try {
+        await deleteCommission(id);
+        fetchAllData(true);
+    } catch (err) {
+        setMyCommissions(originalCommissions); // Revert
+        handleDataError(err);
     }
   };
 
@@ -172,13 +183,13 @@ const App: React.FC = () => {
         lastUpdated: new Date().toISOString().split('T')[0],
     };
 
-    const addedCommission = await addCommission(commissionToAdd);
-    if (addedCommission) {
+    try {
+        const addedCommission = await addCommission(commissionToAdd);
         setMyCommissions(prev => [addedCommission, ...prev]);
         setIsAdding(false);
         fetchAllData(true);
-    } else {
-        alert("新增失敗，請重試！");
+    } catch (err) {
+        handleDataError(err);
     }
   };
 
