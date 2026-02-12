@@ -224,8 +224,8 @@ const App: React.FC = () => {
               setAuthError("此 Email 已經註冊過了，請直接登入。");
           } else if (err.code === 'auth/weak-password') {
               setAuthError("密碼太弱，請至少輸入 6 個字元。");
-          } else if (err.code === 'auth/operation-not-allowed') {
-              setAuthError("錯誤：請至 Firebase Console 開啟 Email/Password 登入功能。");
+          } else if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/configuration-not-found') {
+              setAuthError("錯誤：請至 Firebase Console > Authentication 開啟 Email/Password 登入功能。");
           } else {
               setAuthError(err.message || "登入失敗，請稍後再試。");
           }
